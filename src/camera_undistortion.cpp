@@ -5,6 +5,7 @@
 #include "opencv2/core/types_c.h"
 #include <string>
 #include <math.h>
+#include <iostream>
 using namespace std;
 using namespace cv;
 string image_file = "/home/lan/Dataset/slam/vq910_tum/mav0/cam0/data/91573842548556.png";
@@ -26,13 +27,12 @@ int main(int argc, char const *argv[])
     {
         for (int u = 0; u < cols; u++)
         {
-            double x = ( u - cx ) / fx, y = ( u - cy ) / fy;
+            double x = ( u - cx ) / fx, y = ( v - cy ) / fy;
             double r = sqrt( x * x + y * y );
             double x_distorted = x* (1 + k1 * r * r + k2 * r * r * r * r) + 2 * p1 * x * y + p2 * (r*r + 2*x*x);
             double y_distorted = y* (1 + k1 * r * r + k2 * r * r * r * r) + 2 * p2 * x * y + p1 * (r*r + 2*y*y);
             double u_distorted = fx * x_distorted + cx;
             double v_distorted = fy * y_distorted + cy;
-
             if (u_distorted >= 0 && v_distorted >= 0 && u_distorted < cols && v_distorted < rows){
                 image_undistort.at<u_char>(v,u) =image.at<u_char>((int) v_distorted,(int) u_distorted);
             }
@@ -48,31 +48,27 @@ int main(int argc, char const *argv[])
     {
         for (int u = 0; u < cols; u++)
         {
-            double r = sqrt( (u - cx) * (u - cx) + (v - cy) * (v - cy) );
-            double cita = atan((v - cy) / (u - cx));
-            // double ru = (1/w) *www atan(2 * r * tan(w/2));
-            double ru = tan(r * w)/(2 * tan( w/2 ));
-            
-            double x_distort_fov = ru*cos(cita);
-            double y_distort_fov = ru*sin(cita);
+            double x = ( u - cx ) / fx, y = ( v - cy ) / fy;
+            double r = sqrt( x * x + y * y );
 
-            double u_distort_fov = fx * x_distort_fov + cx;
-            double v_distort_fov = fy * y_distort_fov + cy;
+            double rd = (1/w) * atan(2 * r * tan(w/2));
+            // double cita = atan(rd/r);//(v - cy) / (u - cx));
+            // cout << "cita  =  " << cita << endl;
+
+            double x_distort_fov = (rd/r)*x;
+            double y_distort_fov = (rd/r)*y;
+
+            double u_distort_fov = x_distort_fov * fx + cx;
+            double v_distort_fov = y_distort_fov * fy + cy;
 
             if (u_distort_fov >= 0 && v_distort_fov >= 0 && u_distort_fov < cols && v_distort_fov < rows){
-                image_undistort_fov.at<u_char>(v,u) =image.at<u_char>((int) v_distort_fov ,(int) u_distort_fov );
+                image_undistort_fov.at<u_char>(v ,u) =image.at<u_char>((int) v_distort_fov ,(int) u_distort_fov );
             }
             else{
                 image_undistort_fov.at<u_char>(v,u) = 0;
             }            
-
-
         }
-        
-        /* code */
     }
-    
-    
     cv::imshow("distorted", image);
     cv::imshow("undistorted", image_undistort);
     cv::imshow("fov", image_undistort_fov);

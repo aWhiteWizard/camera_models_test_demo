@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(opencv_demo)
+project(camera_undistortion)
 set(CMAKE_CXX_STANDARD 14)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall -O3 -L/usr/local/lib")
@@ -34,6 +34,6 @@ include_directories(
     /usr/local/include/vtk-9.1
 )
 
-add_executable(opencv_demo src/opencv_demo.cpp)
-target_link_libraries(opencv_demo ${OpenCV_LIBS} ${PCL_LIBRARIES})
-install(TARGETS opencv_demo RUNTIME DESTINATION bin) 
+add_executable(camera_undistortion src/camera_undistortion.cpp)
+target_link_libraries(camera_undistortion ${OpenCV_LIBS} ${PCL_LIBRARIES})
+install(TARGETS camera_undistortion RUNTIME DESTINATION bin) 

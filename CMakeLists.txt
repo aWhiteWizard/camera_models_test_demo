@@ -27,7 +27,7 @@ find_package(realsense2 REQUIRED)
 
 link_directories(${PCL_LIBRARY_DIRS})    
 add_definitions(${PCL_DEFINITIONS})
-include_directories()   
+
 include_directories(
     ${OpenCV_INCLUDE_DIRS}
     ${VTK_INCLUDE_DIRS}
@@ -48,3 +48,7 @@ target_link_libraries(picture_sum ${OpenCV_LIBS} ${PCL_LIBRARIES} )
 
 add_executable(opencv_setero src/opencv_setero.cpp)
 target_link_libraries(opencv_setero ${OpenCV_LIBS} ${PCL_LIBRARIES} ${realsense2_LIBRARY})
+
+add_executable(opencv_orb_match src/opencv_orb_match.cpp)
+target_link_libraries(opencv_orb_match ${OpenCV_LIBS} ${PCL_LIBRARIES} ${realsense2_LIBRARY})
+

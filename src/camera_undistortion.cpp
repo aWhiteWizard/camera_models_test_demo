@@ -8,29 +8,44 @@
 #include <iostream>
 using namespace std;
 using namespace cv;
-string image_file = "/media/lan/disk2/1_workspace/camera_models_test_demo/src/91573842548556.png";
-
+string image_file = "/media/lan/disk2/1_workspace/camera_models_test_demo/data/pic_2";
+string distort_file = "/media/lan/disk2/1_workspace/camera_models_test_demo/data/distort";
 int main(int argc, char const *argv[])
 {
-    double k1 = -0.08932028934440016, k2 = 0.01533862024154591, p1 = -0.009194221425211433, p2 = 0.002049588674966516;
-    double fx = 271.16546955760583, fy = 271.6917056906144, cx = 318.75851896359893, cy = 251.77689999945986;
-    double w = 0.9197157202344117;
-    cv::Mat image = cv::imread(image_file, 0);
+    double k1 = -0.22898814237070902, k2 = 0.032542929993888366, p1 = 0.01186841923858413, p2 = 0.003220581226743435;
+    double fx = 271.6370684829356, fy = 271.5300517555869, cx = 420.4737734129955, cy = 388.5689069064903;
+    double w = 0.9345926693865441;
+    vector<KeyPoint> keypoint1;
+    vector<DMatch> match;
+    std::vector<cv::String> image_files;
+    std::vector<cv::String> distort_files;
+    cv::glob(image_file, image_files);
+    cv::glob(distort_file, distort_files);
 
+    if (image_files.size() == 0) 
+		std::cout << "No image files[jpg]" << std::endl;
+
+    for (unsigned int frame = 0; frame < image_files.size(); frame++) //image_file.size()代表文件中总共的图片个数
+	{
+    cv::Mat image = cv::imread(image_files[frame],cv::IMREAD_GRAYSCALE);
+    cv::Mat distort = cv::imread(distort_files[frame],cv::IMREAD_GRAYSCALE);
+    // cv::Mat image = cv::imread(image_file, 0);
     int rows = image.rows, cols = image.cols;
-    cv::Mat image_undistort = cv::Mat(rows+300,cols+300, CV_8UC1);
+    int distort_rows = distort.rows, distort_cols = distort.cols;
+    cv::Mat image_undistort = cv::Mat(rows+800,cols+800, CV_8UC1);
     cv::Mat image_undistort_fov = cv::Mat(rows+800,cols+800, CV_8UC1);
+    cv::Mat image_redistort_fov = cv::Mat(rows+800,cols+800, CV_8UC1);
 /*
     opencv的KB投影
 */
-    for(int v = 0; v < rows+300 ; v++)
+    for(int v = 0; v < rows+800 ; v++)
     {
-        for (int u = 0; u < cols+300; u++)
+        for (int u = 0; u < cols+800; u++)
         {
-            double x = ( u - cx - 150) / fx, y = ( v - cy - 150) / fy;
+            double x = ( u - cx - 400) / fx, y = ( v - cy - 400) / fy;
             double r = sqrt( x * x + y * y );
-            double x_distorted = x* (1 + k1 * r * r + k2 * r * r * r * r + p1 * r * r * r * r * r * r + p2 * r * r *r * r *r * r *r * r) ;//+ 2 * p1 * x * y + p2 * (r*r + 2*x*x);
-            double y_distorted = y* (1 + k1 * r * r + k2 * r * r * r * r) ;//+ 2 * p2 * x * y + p1 * (r*r + 2*y*y);
+            double x_distorted = x* (1 + k1 * r * r + k2 * r * r * r * r + p1 * r * r * r * r * r * r + p2 * r * r *r * r *r * r *r * r);//+ 2 * p1 * x * y + p2 * (r*r + 2*x*x);// 
+            double y_distorted = y* (1 + k1 * r * r + k2 * r * r * r * r + p1 * r * r * r * r * r * r + p2 * r * r *r * r *r * r *r * r); //+ 2 * p2 * x * y + p1 * (r*r + 2*y*y);/
             double u_distorted = fx * x_distorted + cx;
             double v_distorted = fy * y_distorted + cy;
             if (u_distorted >= 0 && v_distorted >= 0 && u_distorted < cols && v_distorted < rows){
@@ -73,12 +88,46 @@ int main(int argc, char const *argv[])
             }            
         }
     }
-    cv::imshow("原图", image);
-    cv::imwrite("./原图.jpg",image);
-    cv::imshow("多项式反畸变投影", image_undistort);
-    cv::imwrite("./多项式反畸变投影.jpg",image_undistort);
-    cv::imshow("fov反畸变投影", image_undistort_fov);
-    cv::imwrite("./fov反畸变投影.jpg",image_undistort_fov);
+/*
+    FOV的反投影
+*/
+       for (int v = 0; v < distort_rows; v++)
+    {
+        for (int u = 0; u < distort_cols; u++)
+        {
+            // double cxx = cx + 400;
+            // double cyy = cy + 400;
+
+            double x_distort_fov = (u - cx - 400) / fx;
+            double y_distort_fov = (v - cy - 400) / fy;
+ 
+            double rd = sqrt(x_distort_fov * x_distort_fov + y_distort_fov * y_distort_fov);
+            double r = tan(rd * w) / (2 * tan(w/2));
+            
+            double x = x_distort_fov * (r/rd) * fx + cx + 400;
+            double y = y_distort_fov * (r/rd) * fy + cy + 400;
+
+            // double cita = atan(rd/r);//(v - cy) / (u - cx));
+            // cout << "cita  =  " << cita << endl;
+
+            if (y >= 0 && x >= 0 && x < distort_cols && y < distort_rows){
+                // cout << "rows = " << u << endl;
+                // cout << "cols = " << v << endl;
+                // cout << "v_distort_fov = " << v_distort_fov << endl;
+                // cout << "u_distort_fov = " << u_distort_fov << endl;
+                image_redistort_fov.at<u_char>(v,u) =distort.at<u_char>((int) x ,(int) y);
+            }
+            else{
+                image_redistort_fov.at<u_char>(v,u) = 0;
+            }            
+        }
+    }
+
+    // cv::imwrite(std::to_string(1111)+std::to_string(frame+28) + ".jpg",image_undistort);
+    // cv::imwrite(std::to_string(2222)+std::to_string(frame+28) + ".jpg",image_redistort_fov);
+    
+    cv::imwrite(std::to_string(frame+28) + ".jpg",image_undistort_fov);
+    }	
     
     cv::waitKey();
     return 0;

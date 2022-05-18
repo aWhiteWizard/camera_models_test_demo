@@ -52,4 +52,6 @@ target_link_libraries(opencv_setero ${OpenCV_LIBS} ${PCL_LIBRARIES} ${realsense2
 add_executable(opencv_orb_match src/opencv_orb_match.cpp)
 target_link_libraries(opencv_orb_match ${OpenCV_LIBS} ${PCL_LIBRARIES} ${realsense2_LIBRARY})
 
+add_executable(merge_with_coordinate src/merge_with_coordinate.cpp)
+target_link_libraries(merge_with_coordinate ${OpenCV_LIBS} ${PCL_LIBRARIES} )
 

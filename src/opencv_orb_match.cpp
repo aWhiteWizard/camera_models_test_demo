@@ -137,17 +137,24 @@ int main(int argc, char const *argv[])
         cout << "left merge" << endl;
         merge(mv,m_left);
         cout << "left convertTo" << endl;
-        mix_pic_01.convertTo(mix_pic_01, CV_8U);
+        mix_pic_01.convertTo(mix_pic_01, CV_8UC1);
+        cv::imwrite("./merge/" + std::to_string(frame) + "ori_mix_pic_01.jpg", mix_pic_01);
         cout << "left multiply_real" << endl;
-        cv::multiply(mix_pic_01, m_left, mix_pic_01);
+        cout << "size of mix_pic_01 is : " << mix_pic_01.size() << endl;
+        cout << "size of m_left is : " << m_left.size() << endl;
         
-        cout << "right multiply" << endl;    
+        cv::multiply(mix_pic_01, m_left, mix_pic_01);// 这里很奇妙的时好时不好，应该是前面keypoints的问题，可以参考例程改一下
+
+        cv::imwrite("./merge/" + std::to_string(frame) + "mix_pic_01.jpg", mix_pic_01);
+        cout << "right merge" << endl;    
         Mat m_right;
         mv.push_back(mask2);
-        mv.push_back(mask2);
-        mv.push_back(mask2);
         merge(mv,m_right);
-        mix_pic_02.convertTo(mix_pic_02, CV_8U);
+        cout << "rignt convertTo " << endl;
+        mix_pic_02.convertTo(mix_pic_02, CV_8UC1);
+        cout << "right multiply_real " << endl;
+        cout << "size of mix_pic_02 is : " << mix_pic_02.size() << endl;
+        cout << "size of m_right is : " << m_right.size() << endl;
         multiply(mix_pic_02, m_right, mix_pic_02);
         cout << "merge the pic" << endl;
         //merge

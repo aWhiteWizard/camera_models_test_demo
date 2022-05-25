@@ -54,4 +54,13 @@ target_link_libraries(opencv_orb_match ${OpenCV_LIBS} ${PCL_LIBRARIES} ${realsen
 
 add_executable(merge_with_coordinate src/merge_with_coordinate.cpp)
 target_link_libraries(merge_with_coordinate ${OpenCV_LIBS} ${PCL_LIBRARIES} )
+install(TARGETS merge_with_coordinate RUNTIME DESTINATION bin) 
 
+
+add_executable(setero_calibr src/setero_calibr.cpp)
+target_link_libraries(setero_calibr ${OpenCV_LIBS} ${PCL_LIBRARIES} )
+install(TARGETS setero_calibr RUNTIME DESTINATION bin) 
+
+add_executable(lab03 src/lab03.cpp)
+target_link_libraries(lab03 ${OpenCV_LIBS} ${PCL_LIBRARIES} )
+install(TARGETS lab03 RUNTIME DESTINATION bin) 

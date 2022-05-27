@@ -64,3 +64,7 @@ install(TARGETS setero_calibr RUNTIME DESTINATION bin)
 add_executable(lab03 src/lab03.cpp)
 target_link_libraries(lab03 ${OpenCV_LIBS} ${PCL_LIBRARIES} )
 install(TARGETS lab03 RUNTIME DESTINATION bin) 
+
+add_executable(global_splicing src/global_splicing.cpp)
+target_link_libraries(global_splicing ${OpenCV_LIBS} ${PCL_LIBRARIES} )
+install(TARGETS global_splicing RUNTIME DESTINATION bin) 

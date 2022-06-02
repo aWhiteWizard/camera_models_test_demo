@@ -63,3 +63,7 @@ install(TARGETS lab03 RUNTIME DESTINATION bin)
 add_executable(global_splicing src/global_splicing.cpp)
 target_link_libraries(global_splicing ${OpenCV_LIBS}   ${Pangolin_LIBRARIES})
 install(TARGETS global_splicing RUNTIME DESTINATION bin) 
+
+add_executable(trans3Dto2D src/trans3Dto2D.cpp)
+target_link_libraries(trans3Dto2D ${OpenCV_LIBS}   ${Pangolin_LIBRARIES})
+install(TARGETS trans3Dto2D RUNTIME DESTINATION bin) 

@@ -3,6 +3,7 @@
 #include "opencv2/imgproc/imgproc_c.h"
 #include "opencv2/core/core_c.h"
 #include "opencv2/core/types_c.h"
+
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
@@ -19,6 +20,11 @@ cv::String path1 = "/home/lan/Dataset/new_vr1/cam0";
 cv::String path2 = "/home/lan/Dataset/new_vr1/cam1";
 cv::String path3 = "/home/lan/Dataset/new_vr1/cam2";
 cv::String path4 = "/home/lan/Dataset/new_vr1/cam3";
+struct userdata{
+    Mat im;
+    vector<Point2f> points;
+};
+
 
 
 cv::Mat rotate270(cv::Mat src)
@@ -30,21 +36,42 @@ cv::Mat rotate270(cv::Mat src)
 	return dst;
 }
 
-cv::Mat image_combine(cv::Mat frame1, cv::Mat frame2, cv::Mat frame3, cv::Mat frame4)
+void mouseHandler(int event, int x, int y, int flags, void* data_ptr)
 {
-        cv::Mat combine = cv::Mat(1200, 1200, CV_8UC1);
+    if  ( event == EVENT_LBUTTONDOWN )
+    {
+        userdata *data = ((userdata *) data_ptr);
+        circle(data->im, Point(x,y),3,Scalar(0,255,255), 5, cv::LINE_AA);
+        imshow("Image", data->im);
+        if (data->points.size() < 4)
+        {
+            data->points.push_back(Point2f(x,y));
+        }
+    }
+}
 
-        cv::Mat imgROI = combine(Rect(0, 250, frame1.cols, frame1.rows));
+void Rotate(const Mat &srcImage, Mat &destImage, double angle) {
+    Point2f center(srcImage.cols / 2, srcImage.rows / 2);//中心
+    Mat M = getRotationMatrix2D(center, angle, 1);//计算旋转的仿射变换矩阵
+    warpAffine(srcImage, destImage, M, Size(srcImage.cols, srcImage.rows));//仿射变换
+    circle(destImage, center, 2, Scalar(255, 0, 0));
+}
+
+cv::Mat image_combine(cv::Mat frame1, cv::Mat frame2, cv::Mat frame3)// cv::Mat frame4)
+{
+        cv::Mat combine = cv::Mat(2000, 2000, frame1.type());
+
+        cv::Mat imgROI = combine(Rect(0, 0, frame1.cols, frame1.rows));
         addWeighted(frame1, 1, imgROI, 1, 0, imgROI);
 
-        imgROI = combine(Rect(60, 260, frame2.cols, frame2.rows));
+        imgROI = combine(Rect(0, 0, frame2.cols, frame2.rows));
         addWeighted(frame2, 1, imgROI, 1, 0, imgROI);
 
-        imgROI = combine(Rect(500, 0, frame3.cols, frame3.rows));
+        imgROI = combine(Rect(1000, 500, frame3.cols, frame3.rows));
         addWeighted(frame3, 1, imgROI, 1, 0, imgROI);
 
-        imgROI = combine(Rect(0, 0, frame4.cols, frame4.rows));
-        addWeighted(frame4, 1, imgROI, 1, 0, imgROI);
+        // imgROI = combine(Rect(0, 0, frame4.cols, frame4.rows));
+        // addWeighted(frame4, 1, imgROI, 1, 0, imgROI);
 
         return combine;
 }
@@ -134,10 +161,10 @@ void initUndistortRectifyMapA( InputArray K, InputArray D, InputArray R, InputAr
 
     cv::Matx33d iR = (PP * RR).inv(cv::DECOMP_SVD);
 
-    for( int i = 0; i < size.height; ++i)
+    for( int i = -300; i < size.height - 300; ++i)
     {
-        float* m1f = map1.getMat().ptr<float>(i);
-        float* m2f = map2.getMat().ptr<float>(i);
+        float* m1f = map1.getMat().ptr<float>(i + 300);
+        float* m2f = map2.getMat().ptr<float>(i + 300);
         short*  m1 = (short*)m1f;
         ushort* m2 = (ushort*)m2f;
 
@@ -145,50 +172,37 @@ void initUndistortRectifyMapA( InputArray K, InputArray D, InputArray R, InputAr
                _y = i*iR(1, 1) + iR(1, 2),
                _w = i*iR(2, 1) + iR(2, 2);
 
-        for( int j = 0; j < size.width; ++j)
+        for( int j = -600; j < size.width - 600; ++j)
         {
             double u, v;
-            if( _w <= 0)
-            {
-                u = (_x > 0) ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity();
-                v = (_y > 0) ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity();
-            }
-            else
-            {
-                double x = _x/_w, y = _y/_w;
+            double x = _x/(_w/2), y = _y/(_w/2);
+            double r = sqrt(x*x + y*y);
+            double theta = atan(r);
 
-                double r = sqrt(x*x + y*y);
-                double theta = atan(r);
+            double theta2 = theta*theta, theta4 = theta2*theta2, theta6 = theta4*theta2, theta8 = theta4*theta4;
+            double theta_d = theta * (1 + k[0]*theta2 + k[1]*theta4 + k[2]*theta6 + k[3]*theta8);
 
-                double theta2 = theta*theta, theta4 = theta2*theta2, theta6 = theta4*theta2, theta8 = theta4*theta4;
-                double theta_d = theta * (1 + k[0]*theta2 + k[1]*theta4 + k[2]*theta6 + k[3]*theta8);
+            double scale = (r == 0) ? 1.0 : theta_d / r;
+            u = f[0]*x*scale + c[0];
+            v = f[1]*y*scale + c[1];
 
-                double scale = (r == 0) ? 1.0 : theta_d / r;
-                u = f[0]*x*scale + c[0] ;
-                v = f[1]*y*scale + c[1] ;
-
-                // imu0.open("./record/imu0/data.csv", ios::app);
-                // imu0 << "u:" << "\t" << u <<"v:" << "\t" << v << endl;
-                // imu0.close();
-            }
-
-            if( m1type == CV_16SC2 )
+            if( m1type == CV_16SC2)
             {
                 int iu = cv::saturate_cast<int>(u*cv::INTER_TAB_SIZE);
                 int iv = cv::saturate_cast<int>(v*cv::INTER_TAB_SIZE);
-                m1[j*2+0] = (short)(iu >> cv::INTER_BITS);
-                m1[j*2+1] = (short)(iv >> cv::INTER_BITS);
-                m2[j] = (ushort)((iv & (cv::INTER_TAB_SIZE-1))*cv::INTER_TAB_SIZE + (iu & (cv::INTER_TAB_SIZE-1)));
+                m1[(j + 600)*2+0] = (short)(iu >> cv::INTER_BITS);
+                m1[(j + 600)*2+1] = (short)(iv >> cv::INTER_BITS);
+                m2[j + 600] = (ushort)((iv & (cv::INTER_TAB_SIZE-1))*cv::INTER_TAB_SIZE + (iu & (cv::INTER_TAB_SIZE-1)));
             }
             else if( m1type == CV_32FC1 )
             {
-                m1f[j] = (float)u;
-                m2f[j] = (float)v;
+                m1f[j + 600] = (float)u;
+                m2f[j + 600] = (float)v;
             }
 
-            _x += (iR(0, 0));
-            _y += (iR(1, 0));
-            _w += (iR(2, 0));
+            _x = i*iR(0, 1) + iR(0, 2) + j*(iR(0, 0));
+            _y = i*iR(1, 1) + iR(1, 2) + j*(iR(1, 0));
+            _w = i*iR(2, 1) + iR(2, 2) + j*(iR(2, 0));
         }
     }
 }
@@ -241,10 +255,10 @@ void initUndistortRectifyMapB( InputArray K, InputArray D, InputArray R, InputAr
 
     cv::Matx33d iR = (PP * RR).inv(cv::DECOMP_SVD);
 
-    for( int i = 0; i < size.height; ++i)
+    for( int i = -300; i < size.height-300; ++i)
     {
-        float* m1f = map1.getMat().ptr<float>(i);
-        float* m2f = map2.getMat().ptr<float>(i);
+        float* m1f = map1.getMat().ptr<float>(i+300);
+        float* m2f = map2.getMat().ptr<float>(i+300);
         short*  m1 = (short*)m1f;
         ushort* m2 = (ushort*)m2f;
 
@@ -254,26 +268,18 @@ void initUndistortRectifyMapB( InputArray K, InputArray D, InputArray R, InputAr
 
         for( int j = 0; j < size.width; ++j)
         {
-            double u, v;
-            if( _w <= 0)
-            {
-                u = (_x > 0) ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity();
-                v = (_y > 0) ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity();
-            }
-            else
-            {
-                double x = _x/_w, y = _y/_w;
+            double u, v, mine_u, mine_v;
+            double x = _x/_w, y = _y/_w;
 
-                double r = sqrt(x*x + y*y);
-                double theta = atan(r);
+            double r = sqrt(x*x + y*y);
+            double theta = atan(r);
 
-                double theta2 = theta*theta, theta4 = theta2*theta2, theta6 = theta4*theta2, theta8 = theta4*theta4;
-                double theta_d = theta * (1 + k[0]*theta2 + k[1]*theta4 + k[2]*theta6 + k[3]*theta8);
+            double theta2 = theta*theta, theta4 = theta2*theta2, theta6 = theta4*theta2, theta8 = theta4*theta4;
+            double theta_d = theta * (1 + k[0]*theta2 + k[1]*theta4 + k[2]*theta6 + k[3]*theta8);
 
-                double scale = (r == 0) ? 1.0 : theta_d / r;
-                u = f[0]*x*scale + c[0] ;
-                v = f[1]*y*scale + c[1] ;
-            }
+            double scale = (r == 0) ? 1.0 : theta_d / r;
+            u = f[0]*x*scale + c[0] ;
+            v = f[1]*y*scale + c[1] ;
 
             if( m1type == CV_16SC2 )
             {
@@ -285,13 +291,13 @@ void initUndistortRectifyMapB( InputArray K, InputArray D, InputArray R, InputAr
             }
             else if( m1type == CV_32FC1 )
             {
-                m1f[j] = (float)u;
-                m2f[j] = (float)v;
+                m1f[(j)] = (float)u;
+                m2f[(j)] = (float)v;
             }
 
-            _x += (iR(0, 0));
-            _y += (iR(1, 0));
-            _w += (iR(2, 0));
+            _x = i*iR(0, 1) + iR(0, 2) + j*(iR(0, 0));
+            _y = i*iR(1, 1) + iR(1, 2) + j*(iR(1, 0));
+            _w = i*iR(2, 1) + iR(2, 2) + j*(iR(2, 0));
         }
     }
 }
@@ -422,8 +428,8 @@ int main(int argc, char * argv[])
  * IMG1 & IMG2
 *****************************************************************************************************************************/
         Size imageSize=frame1.size();//图片尺寸
-        Size imageSizeUp=cv::Size(700,700);//图片尺寸
-        Size imageSizeLeftUp=cv::Size(700,1000);//图片尺寸
+        Size imageSizeUp=cv::Size(1000,1000);//图片尺寸
+        Size imageSizeLeftUp=cv::Size(1000,1000);//图片尺寸
         Mat R1,R2,P1,P2,Q;
        double alpha=-1;
        if (alpha < 0 || alpha > 1)//裁剪系数，阈值
@@ -488,8 +494,8 @@ int main(int argc, char * argv[])
                                 D2_0,//
                                 R2_0*R1,//
                                 P1,//
-                                imageSizeUp,
-                                CV_16SC2,
+                                imageSizeLeftUp,
+                                CV_32FC1,
                                 remapmX3,
                                 remapmY3
                                 );  //④计算校正查找映射表，分别求映射矩阵
@@ -521,6 +527,84 @@ int main(int argc, char * argv[])
        {
               remap( frame4, imgURr, remapmX4, remapmY4, INTER_LINEAR );
        }
+        // Rotate(imgULr, imgULr, -15);
+        // Rotate(imgURr, imgURr, 15);
+        cv::cvtColor(imgLr, imgLr, CV_8UC1);
+        cv::cvtColor(imgRr, imgRr, CV_8UC1);
+        cout << " ready to merge "<< endl;
+        cv::Mat result1 = cv::Mat::zeros(imgURr.size(), CV_8UC3) ;
+        cout << " vreate result1 "<< endl;
+        // cv::Mat result2 = cv::Mat::zeros(imgURr.size(), CV_8U) ;
+        std::vector<cv::Mat> images;
+        images.push_back(imgLr);
+        images.push_back(imgRr);
+
+        cout << " images.size() : " << images.size() << endl;
+
+        Stitcher::Mode mode = Stitcher::PANORAMA;
+        Ptr<Stitcher> stitcher = Stitcher::create(mode);
+        cout << " stitcher mode ready "<< endl;
+        auto blender = detail::Blender::createDefault(detail::Blender::MULTI_BAND);
+        stitcher->setBlender(blender);
+        cout << " blender blender ready "<< endl;
+        Stitcher::Status status = stitcher->stitch(images, result1);
+        cout << "stitcher finish "<<endl;
+        if (status != Stitcher::OK)
+        {
+            cout << "Can't stitch images, error code = " << int(status) << endl;
+            return EXIT_FAILURE;
+        }   
+
+        vector<Point2f> pts_dst;
+        cv::copyMakeBorder(imgURr, imgURr,0,0,imgURr.cols,0,0);
+        pts_dst.push_back(Point2f(0,0));
+        pts_dst.push_back(Point2f(imgULr.size().width - 1, 0));
+        pts_dst.push_back(Point2f(imgULr.size().width - 1, imgULr.size().height -1));
+        pts_dst.push_back(Point2f(0, imgULr.size().height - 1 ));
+
+        //Create a window
+        namedWindow("Image", 1);
+
+        cv::Mat im_temp = imgULr.clone();
+        cv::Mat im_dst = Mat::zeros(imgULr.size(),CV_8UC3);
+        userdata data1;
+        data1.im = im_temp;
+
+        //set the callback function for any mouse event
+        setMouseCallback("Image", mouseHandler, &data1);
+        //show the image
+        imshow("Image", im_temp);
+        waitKey(0);
+
+        // vector<Point2f> pts2_dst;
+
+        // pts2_dst.push_back(Point2f(0,0));
+        // pts2_dst.push_back(Point2f(imgURr.size().width - 1, 0));
+        // pts2_dst.push_back(Point2f(imgURr.size().width - 1, imgURr.size().height -1));
+        // pts2_dst.push_back(Point2f(0, imgURr.size().height - 1 ));
+
+        //Create a window
+        namedWindow("Image", 1);
+
+        cv::Mat im_temp2 = imgURr.clone();
+        cv::Mat im_dst2 = Mat::zeros(imgURr.size(),CV_8UC3);
+        userdata data2;
+        data2.im = im_temp2;
+
+        //set the callback function for any mouse event
+        setMouseCallback("Image", mouseHandler, &data2);
+        //show the image
+        imshow("Image", im_temp2);
+        waitKey(0);
+
+
+        Mat tform = findHomography(data1.points, data2.points, RANSAC);
+        warpPerspective(imgULr, im_dst, tform, imgURr.size());
+        cv::Mat result33 = image_combine(imgURr, im_dst, result1);
+        imshow("Image", result33);
+        waitKey(0);
+        // cv::Mat H1 = cv::getPerspectiveTransform(imgULr, imgULr);
+        // cv::warpPerspective(imgULr,  imgULr, H1, imgULr.size());        
 
 /**********************************************************************
  * 相机基线对齐及图像融合
@@ -536,14 +620,14 @@ int main(int argc, char * argv[])
         cvtColor(imgRr, imgRr, CV_GRAY2RGB);
         cvtColor(imgULr, imgULr, CV_GRAY2RGB);
         cvtColor(imgURr, imgURr, CV_GRAY2RGB);
-        imshow("imgLr ", imgLr);
-        imshow("imgRr ", imgRr);
+        // imshow("imgLr ", imgLr);
+        // imshow("imgRr ", imgRr);
 
-        imshow("imgURr ", imgURr);
-        imshow("frame1 ", frame1);
-        imshow("frame2 ", frame2);
-        imshow("frame3 ", frame3);
-        imshow("frame4 ", frame4);
+        // imshow("imgURr ", imgURr);
+        // imshow("frame1 ", frame1);
+        // imshow("frame2 ", frame2);
+        // imshow("frame3 ", frame3);
+        // imshow("frame4 ", frame4);
         // cv::Mat combine = image_combine(destImage2, destImage3, destImage1, frame3);
 
 /**********************************************************************
@@ -556,30 +640,14 @@ int main(int argc, char * argv[])
 
         cout << frame << " frame is finish" << endl;
 
-        cv::Mat result1 = cv::Mat::zeros(imgURr.size(), CV_8UC3) ;
-        // cv::Mat result2 = cv::Mat::zeros(imgURr.size(), CV_8U) ;
-        std::vector<cv::Mat> images;
-        images.push_back(imgLr);
-        images.push_back(imgRr);
-        images.push_back(imgULr);
-        images.push_back(imgURr);
 
-        cout << " images.size() : " << images.size() << endl;
-
-        Stitcher::Mode mode = Stitcher::PANORAMA;
-        Ptr<Stitcher> stitcher = Stitcher::create(mode);
-        auto blender = detail::Blender::createDefault(detail::Blender::MULTI_BAND);
-        stitcher->setBlender(blender);
-        Stitcher::Status status = stitcher->stitch(images, result1);
-        cout << "stitcher finish "<<endl;
-        if (status != Stitcher::OK)
-        {
-            cout << "Can't stitch images, error code = " << int(status) << endl;
-            return EXIT_FAILURE;
-        }
-       imshow("result", result1);
-        imshow("imgULr ", imgULr);
+        // cv::Mat result2 = image_combine(imgURr, imgULr);
+        // imshow("result2", result2);
+        // imshow("result", result1);
+        // imshow("imgULr ", imgULr);
         imwrite("./merge_coordinate/result_" + std::to_string(frame) + ".png", result1);
+        imwrite("./merge_coordinate/imgULr_" + std::to_string(frame) + ".png", imgULr);
+        imwrite("./merge_coordinate/imgURr_" + std::to_string(frame) + ".png", imgURr);
         waitKey();
     }    
 

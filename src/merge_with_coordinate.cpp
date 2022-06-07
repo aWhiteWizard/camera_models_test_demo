@@ -57,7 +57,7 @@ void Rotate(const Mat &srcImage, Mat &destImage, double angle) {
     circle(destImage, center, 2, Scalar(255, 0, 0));
 }
 
-cv::Mat image_combine(cv::Mat frame1, cv::Mat frame2, cv::Mat frame3)// cv::Mat frame4)
+cv::Mat image_combine(cv::Mat frame1, cv::Mat frame2)//, cv::Mat frame3)// cv::Mat frame4)
 {
         cv::Mat combine = cv::Mat(2000, 2000, frame1.type());
 
@@ -67,8 +67,8 @@ cv::Mat image_combine(cv::Mat frame1, cv::Mat frame2, cv::Mat frame3)// cv::Mat 
         imgROI = combine(Rect(0, 0, frame2.cols, frame2.rows));
         addWeighted(frame2, 1, imgROI, 1, 0, imgROI);
 
-        imgROI = combine(Rect(1000, 500, frame3.cols, frame3.rows));
-        addWeighted(frame3, 1, imgROI, 1, 0, imgROI);
+        // imgROI = combine(Rect(350, 500, frame3.cols, frame3.rows));
+        // addWeighted(frame3, 1, imgROI, 1, 0, imgROI);
 
         // imgROI = combine(Rect(0, 0, frame4.cols, frame4.rows));
         // addWeighted(frame4, 1, imgROI, 1, 0, imgROI);
@@ -476,7 +476,7 @@ int main(int argc, char * argv[])
                                             R1,//
                                             P1,//
                                             imageSize,
-                                            CV_16SC2,
+                                            CV_32FC1,
                                             remapmX1,
                                             remapmY1
                                             );  //④计算校正查找映射表，分别求映射矩阵
@@ -486,7 +486,7 @@ int main(int argc, char * argv[])
                                             R2, //
                                             P2, //
                                             imageSize,
-                                            CV_16SC2,
+                                            CV_32FC1,
                                             remapmX2,
                                             remapmY2
                                             );
@@ -504,7 +504,7 @@ int main(int argc, char * argv[])
                                 R3_1*R2,//
                                 P2,//
                                 imageSizeUp,
-                                CV_16SC2,
+                                CV_32FC1,
                                 remapmX4,
                                 remapmY4
                                 );  //④计算校正查找映射表，分别求映射矩阵
@@ -527,10 +527,12 @@ int main(int argc, char * argv[])
        {
               remap( frame4, imgURr, remapmX4, remapmY4, INTER_LINEAR );
        }
-        // Rotate(imgULr, imgULr, -15);
+        // Rotate(imgULr, imgULr, -15);+ 
         // Rotate(imgURr, imgURr, 15);
-        cv::cvtColor(imgLr, imgLr, CV_8UC1);
-        cv::cvtColor(imgRr, imgRr, CV_8UC1);
+        cvtColor(imgLr, imgLr, CV_GRAY2RGB);
+        cvtColor(imgRr, imgRr, CV_GRAY2RGB);
+        cvtColor(imgULr, imgULr, CV_GRAY2RGB);
+        cvtColor(imgURr, imgURr, CV_GRAY2RGB);
         cout << " ready to merge "<< endl;
         cv::Mat result1 = cv::Mat::zeros(imgURr.size(), CV_8UC3) ;
         cout << " vreate result1 "<< endl;
@@ -556,7 +558,8 @@ int main(int argc, char * argv[])
         }   
 
         vector<Point2f> pts_dst;
-        cv::copyMakeBorder(imgURr, imgURr,0,0,imgURr.cols,0,0);
+        cv::copyMakeBorder(imgURr, imgURr,0,0,imgURr.cols/2,0,0);
+        cv::copyMakeBorder(result1, result1,350,0,350,0,0);
         pts_dst.push_back(Point2f(0,0));
         pts_dst.push_back(Point2f(imgULr.size().width - 1, 0));
         pts_dst.push_back(Point2f(imgULr.size().width - 1, imgULr.size().height -1));
@@ -576,14 +579,6 @@ int main(int argc, char * argv[])
         imshow("Image", im_temp);
         waitKey(0);
 
-        // vector<Point2f> pts2_dst;
-
-        // pts2_dst.push_back(Point2f(0,0));
-        // pts2_dst.push_back(Point2f(imgURr.size().width - 1, 0));
-        // pts2_dst.push_back(Point2f(imgURr.size().width - 1, imgURr.size().height -1));
-        // pts2_dst.push_back(Point2f(0, imgURr.size().height - 1 ));
-
-        //Create a window
         namedWindow("Image", 1);
 
         cv::Mat im_temp2 = imgURr.clone();
@@ -593,14 +588,48 @@ int main(int argc, char * argv[])
 
         //set the callback function for any mouse event
         setMouseCallback("Image", mouseHandler, &data2);
+        namedWindow("Image", 1);
         //show the image
         imshow("Image", im_temp2);
         waitKey(0);
 
 
         Mat tform = findHomography(data1.points, data2.points, RANSAC);
-        warpPerspective(imgULr, im_dst, tform, imgURr.size());
-        cv::Mat result33 = image_combine(imgURr, im_dst, result1);
+        warpPerspective(imgULr, im_dst2, tform, imgURr.size());
+        cv::Mat result33 = image_combine(imgURr, im_dst2);
+
+        //Create a window
+        namedWindow("Image", 1);
+
+        cv::Mat im_temp4 = result33.clone();
+        cv::Mat im_dst4 = Mat::zeros(result33.size(),CV_8UC3);
+        userdata data4;
+        data4.im = im_temp4;
+
+        //set the callback function for any mouse event
+        setMouseCallback("Image", mouseHandler, &data4);
+        //show the image
+        imshow("Image", im_temp4);
+        waitKey(0);
+
+        //Create a window
+        namedWindow("Image", 1);
+
+        cv::Mat im_temp3 = result1.clone();
+        cv::Mat im_dst3 = Mat::zeros(result1.size(),CV_8UC3);
+        userdata data3;
+        data3.im = im_temp3;
+
+        //set the callback function for any mouse event
+        setMouseCallback("Image", mouseHandler, &data3);
+        //show the image
+        imshow("Image", im_temp3);
+        waitKey(0);
+
+        Mat tform1 = findHomography(data3.points, data4.points, RANSAC);
+        warpPerspective(result1, im_dst3, tform1, result1.size());
+        result33 = image_combine(result33, im_dst3); 
+
         imshow("Image", result33);
         waitKey(0);
         // cv::Mat H1 = cv::getPerspectiveTransform(imgULr, imgULr);
@@ -616,10 +645,7 @@ int main(int argc, char * argv[])
         // frame2 = normalized(frame2, M2, R2, T, M2);
         // frame3 = normalized(frame3, M2_0, R2_0*R1, T0_2, M2_0);
         // frame3 = normalized(frame3, M2_0, R2_0 , -T0_2, M1, R, T);
-        cvtColor(imgLr, imgLr, CV_GRAY2RGB);
-        cvtColor(imgRr, imgRr, CV_GRAY2RGB);
-        cvtColor(imgULr, imgULr, CV_GRAY2RGB);
-        cvtColor(imgURr, imgURr, CV_GRAY2RGB);
+
         // imshow("imgLr ", imgLr);
         // imshow("imgRr ", imgRr);
 

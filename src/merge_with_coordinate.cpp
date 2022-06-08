@@ -4,8 +4,23 @@
 #include "opencv2/core/core_c.h"
 #include "opencv2/core/types_c.h"
 
+
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+
+#include <apriltag/common/image_types.h>
+#include <apriltag/apriltag_pose.h>
+#include <apriltag/tag36h11.h>
+#include "apriltag/apriltag.h"
+#include "apriltag/tag36h11.h"
+#include "apriltag/tag25h9.h"
+#include "apriltag/tag16h5.h"
+#include "apriltag/tagCircle21h7.h"
+#include "apriltag/tagCircle49h12.h"
+#include "apriltag/tagCustom48h12.h"
+#include "apriltag/tagStandard41h12.h"
+#include "apriltag/tagStandard52h13.h"
+#include "apriltag/common/getopt.h"
 
 #include <string>
 #include <math.h>
@@ -25,17 +40,6 @@ struct userdata{
     vector<Point2f> points;
 };
 
-
-
-cv::Mat rotate270(cv::Mat src)
-{
-	cv::Mat dst;//目标图像
-    cv::transpose(src, dst);
-    cv::flip(dst, dst, 1);
-
-	return dst;
-}
-
 void mouseHandler(int event, int x, int y, int flags, void* data_ptr)
 {
     if  ( event == EVENT_LBUTTONDOWN )
@@ -49,6 +53,54 @@ void mouseHandler(int event, int x, int y, int flags, void* data_ptr)
         }
     }
 }
+cv::Mat Homo_cal(cv::Mat img1, Mat img2)
+{
+        // vector<Point2f> pts_dst;
+        // pts_dst.push_back(Point2f(0,0));
+        // pts_dst.push_back(Point2f(imgULr.size().width - 1, 0));
+        // pts_dst.push_back(Point2f(imgULr.size().width - 1, imgULr.size().height -1));
+        // pts_dst.push_back(Point2f(0, imgULr.size().height - 1 ));
+
+        //Create a window
+        namedWindow("Image", 1);
+
+        cv::Mat im_temp = img1.clone();
+        cv::Mat im_dst = Mat::zeros(img1.size(),CV_8UC3);
+        userdata data1;
+        data1.im = im_temp;
+
+        //set the callback function for any mouse event
+        setMouseCallback("Image", mouseHandler, &data1);
+        //show the image
+        imshow("Image", im_temp);
+        waitKey(0);
+
+        namedWindow("Image", 1);
+
+        cv::Mat im_temp2 = img2.clone();
+        cv::Mat im_dst2 = Mat::zeros(img2.size(),CV_8UC3);
+        userdata data2;
+        data2.im = im_temp2;
+
+        //set the callback function for any mouse event
+        setMouseCallback("Image", mouseHandler, &data2);
+        namedWindow("Image", 1);
+        //show the image
+        imshow("Image", im_temp2);
+        waitKey(0);
+
+        Mat tform = findHomography(data1.points, data2.points, RANSAC);
+        
+        return tform;
+}
+cv::Mat rotate270(cv::Mat src)
+{
+	cv::Mat dst;//目标图像
+    cv::transpose(src, dst);
+    cv::flip(dst, dst, 1);
+
+	return dst;
+}
 
 void Rotate(const Mat &srcImage, Mat &destImage, double angle) {
     Point2f center(srcImage.cols / 2, srcImage.rows / 2);//中心
@@ -59,21 +111,18 @@ void Rotate(const Mat &srcImage, Mat &destImage, double angle) {
 
 cv::Mat image_combine(cv::Mat frame1, cv::Mat frame2)//, cv::Mat frame3)// cv::Mat frame4)
 {
-        cv::Mat combine = cv::Mat(2000, 2000, frame1.type());
-
-        cv::Mat imgROI = combine(Rect(0, 0, frame1.cols, frame1.rows));
-        addWeighted(frame1, 1, imgROI, 1, 0, imgROI);
-
-        imgROI = combine(Rect(0, 0, frame2.cols, frame2.rows));
-        addWeighted(frame2, 1, imgROI, 1, 0, imgROI);
-
-        // imgROI = combine(Rect(350, 500, frame3.cols, frame3.rows));
-        // addWeighted(frame3, 1, imgROI, 1, 0, imgROI);
-
-        // imgROI = combine(Rect(0, 0, frame4.cols, frame4.rows));
-        // addWeighted(frame4, 1, imgROI, 1, 0, imgROI);
-
-        return combine;
+/********************************************************************************
+ * frame2是大图，frame1是小图，用mask把frame1抠出来放到frame2的对应位置上
+ * ******************************************************************************/
+        cv::Mat combine;
+        resize(frame1, frame1, cv::Size(1500, 1000));
+        cv::Mat mask = cv::Mat(frame1.rows, frame1.cols, CV_8UC1);
+        cout << "mask.size() :" << mask.size() << endl;
+        cout << "frame1.size() :" << frame1.size() << endl;
+        cout << "frame2.size() :" << frame2.size() << endl;
+        cv::threshold(frame1, mask, 1, 255, THRESH_BINARY);
+        frame1.copyTo(frame2, mask);
+        return frame2;
 }
 cv::Mat fov_undistortion(cv::Mat img, Eigen::Matrix3d Cam_init, double w)
 {
@@ -399,7 +448,7 @@ int main(int argc, char * argv[])
     Mat T1_3 = (cv::Mat_<double>(3,1)  << 0.02335838256311979, -0.03275110452665002, -0.029256865189976593);
     Mat T3_1 = (cv::Mat_<double>(3,1)  << 0.02335838256311979, -0.03275110452665002, -0.029256865189976593);
 /***********************************************************************************************************************************************************/       
-
+    cv::Mat homo1, homo2;
     //摄像头启动
    /* VideoCapture cap1(0);
     VideoCapture cap2(1);*/
@@ -413,13 +462,13 @@ int main(int argc, char * argv[])
     cv::glob(path3, left2);
     cv::glob(path4, right2);
 
-    for(int frame = 0 ; frame < left1.size() ; frame ++ )
+    for(int frame = 142 ; frame < left1.size() ; frame ++ )
     {
         cv::Mat frame1 = imread(left1[frame], IMREAD_GRAYSCALE),imgLr;
         cv::Mat frame2 = imread(right1[frame], IMREAD_GRAYSCALE),imgRr;
         cv::Mat frame3 = imread(left2[frame], IMREAD_GRAYSCALE),imgULr;
         cv::Mat frame4 = imread(right2[frame], IMREAD_GRAYSCALE),imgURr;
-
+        cv::Mat result;
         frame1 =  rotate270(frame1);
         frame2 =  rotate270(frame2);
         // frame4 =  rotate270(frame4);
@@ -527,8 +576,9 @@ int main(int argc, char * argv[])
        {
               remap( frame4, imgURr, remapmX4, remapmY4, INTER_LINEAR );
        }
-        // Rotate(imgULr, imgULr, -15);+ 
+        // Rotate(imgULr, imgULr, -15);
         // Rotate(imgURr, imgURr, 15);
+
         cvtColor(imgLr, imgLr, CV_GRAY2RGB);
         cvtColor(imgRr, imgRr, CV_GRAY2RGB);
         cvtColor(imgULr, imgULr, CV_GRAY2RGB);
@@ -555,114 +605,64 @@ int main(int argc, char * argv[])
         {
             cout << "Can't stitch images, error code = " << int(status) << endl;
             return EXIT_FAILURE;
-        }   
+        }      
+        cv::Mat im_dst2 = Mat::zeros(imgULr.size(),CV_8UC3);
 
-        vector<Point2f> pts_dst;
         cv::copyMakeBorder(imgURr, imgURr,0,0,imgURr.cols/2,0,0);
-        cv::copyMakeBorder(result1, result1,350,0,350,0,0);
-        pts_dst.push_back(Point2f(0,0));
-        pts_dst.push_back(Point2f(imgULr.size().width - 1, 0));
-        pts_dst.push_back(Point2f(imgULr.size().width - 1, imgULr.size().height -1));
-        pts_dst.push_back(Point2f(0, imgULr.size().height - 1 ));
+        cv::copyMakeBorder(imgULr, imgULr,0,0,0,imgULr.cols/2,0);
+        cv::copyMakeBorder(result1, result1,350,34,350,460,0);
+        if(!(homo1.data))
+            homo1 = Homo_cal(imgULr, imgURr);
+        warpPerspective(imgULr, im_dst2, homo1, imgURr.size());
 
-        //Create a window
-        namedWindow("Image", 1);
+        result = image_combine(im_dst2, imgURr);
+        // cv::imshow("im_dst2", im_dst2);
+        // cv::imshow("imgURr", imgURr);
+        cv::Mat im_dst3 = Mat::zeros(result.size(),CV_8UC3);
+        if(!(homo2.data))
+            homo2 = Homo_cal(result1, result);
+        warpPerspective(result1, im_dst3, homo2, result1.size());
+        result = image_combine(im_dst3 ,result ); 
 
-        cv::Mat im_temp = imgULr.clone();
-        cv::Mat im_dst = Mat::zeros(imgULr.size(),CV_8UC3);
-        userdata data1;
-        data1.im = im_temp;
-
-        //set the callback function for any mouse event
-        setMouseCallback("Image", mouseHandler, &data1);
-        //show the image
-        imshow("Image", im_temp);
-        waitKey(0);
-
-        namedWindow("Image", 1);
-
-        cv::Mat im_temp2 = imgURr.clone();
-        cv::Mat im_dst2 = Mat::zeros(imgURr.size(),CV_8UC3);
-        userdata data2;
-        data2.im = im_temp2;
-
-        //set the callback function for any mouse event
-        setMouseCallback("Image", mouseHandler, &data2);
-        namedWindow("Image", 1);
-        //show the image
-        imshow("Image", im_temp2);
-        waitKey(0);
-
-
-        Mat tform = findHomography(data1.points, data2.points, RANSAC);
-        warpPerspective(imgULr, im_dst2, tform, imgURr.size());
-        cv::Mat result33 = image_combine(imgURr, im_dst2);
-
-        //Create a window
-        namedWindow("Image", 1);
-
-        cv::Mat im_temp4 = result33.clone();
-        cv::Mat im_dst4 = Mat::zeros(result33.size(),CV_8UC3);
-        userdata data4;
-        data4.im = im_temp4;
-
-        //set the callback function for any mouse event
-        setMouseCallback("Image", mouseHandler, &data4);
-        //show the image
-        imshow("Image", im_temp4);
-        waitKey(0);
-
-        //Create a window
-        namedWindow("Image", 1);
-
-        cv::Mat im_temp3 = result1.clone();
-        cv::Mat im_dst3 = Mat::zeros(result1.size(),CV_8UC3);
-        userdata data3;
-        data3.im = im_temp3;
-
-        //set the callback function for any mouse event
-        setMouseCallback("Image", mouseHandler, &data3);
-        //show the image
-        imshow("Image", im_temp3);
-        waitKey(0);
-
-        Mat tform1 = findHomography(data3.points, data4.points, RANSAC);
-        warpPerspective(result1, im_dst3, tform1, result1.size());
-        result33 = image_combine(result33, im_dst3); 
-
-        imshow("Image", result33);
-        waitKey(0);
-        // cv::Mat H1 = cv::getPerspectiveTransform(imgULr, imgULr);
-        // cv::warpPerspective(imgULr,  imgULr, H1, imgULr.size());        
 
 /**********************************************************************
- * 相机基线对齐及图像融合
+ * 直方图和直方图均值化
  * *******************************************************************/  
-        // cout <<" frame2.rows :" << frame2.rows << " frame2.cols :" << frame2.cols << endl;       
-        // cout <<" frame3.rows :" << frame3.rows << " frame3.cols :" << frame3.cols << endl;       
-        // resize(frame3, frame3, cv::Size(1000, 1000));
-        // frame1 = normalized(frame1, M1, R1, T, M1);
-        // frame2 = normalized(frame2, M2, R2, T, M2);
-        // frame3 = normalized(frame3, M2_0, R2_0*R1, T0_2, M2_0);
-        // frame3 = normalized(frame3, M2_0, R2_0 , -T0_2, M1, R, T);
+        // //需要计算的图像的通道，灰度图像为0，BGR图像需要指定B,G,R
+        // const int channels[] = { 0 };
+        // Mat hist;//定义输出Mat类型
+        // int dims = 1;//设置直方图维度
+        // const int histSize[] = { 256 }; //直方图每一个维度划分的柱条的数目
+        // //每一个维度取值范围
+        // float pranges[] = { 0, 255 };//取值区间
+        // const float* ranges[] = { pranges };
+        // calcHist(&result, 1, channels, Mat(), hist, dims, histSize, ranges, true, false);//计算直方图
+        // int scale = 2;
+        // int hist_height = 256;
+        // Mat hist_img = Mat::zeros(hist_height, 256 * scale, CV_8UC3); //创建一个黑底的8位的3通道图像，高256，宽256*2
+        // double max_val;
+        // minMaxLoc(hist, 0, &max_val, 0, 0);//计算直方图的最大像素值
+        // //将像素的个数整合到 图像的最大范围内
+        // //遍历直方图得到的数据
+        // // cv::cvtColor(result, result, CV_RGB2GRAY);
+        // // cv::equalizeHist(result, result);
 
-        // imshow("imgLr ", imgLr);
-        // imshow("imgRr ", imgRr);
+        // for (int i = 0; i < 256; i++)
+        // {
+        //     float bin_val = hist.at<float>(i);   //遍历hist元素（注意hist中是float类型）
+        //     int intensity = cvRound(bin_val*hist_height / max_val);  //绘制高度
+        //     rectangle(hist_img, Point(i*scale, hist_height - 1), Point((i + 1)*scale - 1, hist_height - intensity), Scalar(255, 255, 255));//绘制直方图
+        // }
 
-        // imshow("imgURr ", imgURr);
-        // imshow("frame1 ", frame1);
-        // imshow("frame2 ", frame2);
-        // imshow("frame3 ", frame3);
-        // imshow("frame4 ", frame4);
-        // cv::Mat combine = image_combine(destImage2, destImage3, destImage1, frame3);
-
+        // cv::imshow("直方图", hist_img);
+        cv::imshow("result111", result);  
 /**********************************************************************
  * 相机归一化坐标
  * *******************************************************************/
-        imwrite("./merge_coordinate/cam0_" + std::to_string(frame) + ".png", frame1);
-        imwrite("./merge_coordinate/cam1_" + std::to_string(frame) + ".png", frame2);
-        imwrite("./merge_coordinate/cam2_" + std::to_string(frame) + ".png", frame3);
-        imwrite("./merge_coordinate/cam3_" + std::to_string(frame) + ".png", frame4);
+        // imwrite("./merge_coordinate/cam0_" + std::to_string(frame) + ".png", frame1);
+        // imwrite("./merge_coordinate/cam1_" + std::to_string(frame) + ".png", frame2);
+        // imwrite("./merge_coordinate/cam2_" + std::to_string(frame) + ".png", frame3);
+        // imwrite("./merge_coordinate/cam3_" + std::to_string(frame) + ".png", frame4);
 
         cout << frame << " frame is finish" << endl;
 
@@ -671,9 +671,9 @@ int main(int argc, char * argv[])
         // imshow("result2", result2);
         // imshow("result", result1);
         // imshow("imgULr ", imgULr);
-        imwrite("./merge_coordinate/result_" + std::to_string(frame) + ".png", result1);
-        imwrite("./merge_coordinate/imgULr_" + std::to_string(frame) + ".png", imgULr);
-        imwrite("./merge_coordinate/imgURr_" + std::to_string(frame) + ".png", imgURr);
+        imwrite("./merge_coordinate/result_" + std::to_string(frame) + ".png", result);
+        // imwrite("./merge_coordinate/imgULr_" + std::to_string(frame) + ".png", imgULr);
+        // imwrite("./merge_coordinate/imgURr_" + std::to_string(frame) + ".png", imgURr);
         waitKey();
     }    
 
